@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Annotation</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Epilogue">
+    <style>
+        /* Updated CSS styles */
+        body {
+            font-family: 'Epilogue', sans-serif;
+            background-color: #ef553b;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+
+        .menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 10vh;
+    background: #f2f2f2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 777;
+}
+
+.menu input[type="file"],
+.menu button,
+.menu select,
+.menu input[type="text"] {
+    margin-right: 10px;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: none;
+    border-radius: 4px;
+    background-color: #f2f2f2;
+    color: #333333;
+    cursor: pointer;
+}
+
+.menu input[type="file"] {
+    padding: 10px 12px;
+}
+
+.menu select {
+    padding: 6px 10px;
+}
+
+.menu input[type="text"] {
+    width: 200px;
+}
+
+canvas {
+    border: 1px solid black;
+    margin-top: 15vh;
+    display: inline-block;
+}
+
+.menu button {
+    font-size: 160%;
+}
+
+.menu div {
+    background-color: white;
+    padding: 10px;
+    border-radius: 0;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 20px));
+}
+
+.container {
+            background: rgb(255, 255, 255);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            margin-left: 20px;
+            margin-right: 20px;
+            margin-bottom: 20px;
+            padding-top: 10px;
+            padding-bottom: 30px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            display: inline-block;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="menu">
+        <input type="file" id="imageInput" accept="image/*">
+        <button id="toggleModeBtn">rectangle</button>
+        <button id="clearBtn">Clear</button>
+        <select id="modeSelect">
+            <option value="common">Common</option>
+            <option value="grid">Grid</option>
+            <option value="noise">Noise</option>
+            <option value="pink">Pink</option>
+            <option value="color">Color</option>
+        </select>
+        <input type="text" id="textInput" placeholder="Enter something...">
+        <button id="saveBtn">Save</button>
+    </div>
+    <div class="container">
+        <canvas id="imageCanvas"></canvas>
+    </div>
+    <script>
+        class Point {
+            constructor(x,y) {
+                this.x=x,
+                this.y=y
+                
+            }
+            get coords(){return[this.x,this.y]}
+            set coords(value) {
+                if(Array.isArray(value)) {
+                    this.x = value[0]
+                    this.y = value[1]
+                }
+            }
+        }
+        class Rect {
+            constructor(p0=null,p1=null) {
+                this.p0 = p0,
+                this.p1 = p1
+            }
+            get x() {return this.p1.x - this.p0.x}
+            get y() {return this.p1.y - this.p0.y}
+        }
+        class Polyline {
+            constructor(...points) {
+                this.points=points
+            }
+        }
+        document.addEventListener("DOMContentLoaded", function() {
+            const
+                canvas = document.getElementById("imageCanvas"),
+                ctx = canvas.getContext("2d"),
+                polyline = [],
+                rectangle = [null,null,0,0],
+                drawingModes = [
+                    "rectangle",
+                    "polyline"
+                ],
+                image = new Image()
+            let
+                drawingMode = drawingModes[0]
+
+            const 
+            loadImage = event => {
+                const input = event.target
+                if (input.files && input.files[0]) {
+                    reader = new FileReader()
+                    reader.onload = function(e) {
+                        image.onload = function() {
+                            canvas.width = image.width
+                            canvas.height = image.height
+                            minX = canvas.height
+                            minX = canvas.width
+                            ctx.drawImage(image,0,0)
+                        };
+                        image.src = e.target.result
+                    }
+                    reader.readAsDataURL(input.files[0])
+                }
+            },
+            toggleDrawingMode = () => {
+                drawingMode = drawingModes[(drawingModes.indexOf(drawingMode) + 1) % drawingModes.length]
+                document.getElementById("toggleModeBtn").textContent = drawingMode
+            },
+            clearAnnotations = () => {
+                polyline.length=0
+                rectangle.length=0
+                refreshCanvas()
+            },
+            refreshCanvas = (shouldDrawPoints=true) => {
+                ctx.clearRect(0,0,canvas.width,canvas.height)
+                ctx.drawImage(image,0,0)
+            }
+
+            function saveAnnotations() {
+                const
+                    imageData = canvas.toDataURL(),
+                    rectangleStr = `${rectangle[1]} ${rectangle[3]}, ${rectangle[0]} ${rectangle[2]}`,
+                    polylinesStr = polyline.reduce((accumulatedString,point)=>accumulatedString+'\t('+point.x+', '+point.y+')\n', ''),
+                    pointsTextFileData = `<rectangle>\n${rectangleStr}\n</rectangle>`+(polyline.length>0?`\n<polyline>\n${polylinesStr}</polyline>`:'')
+                console.log(pointsTextFileData)
+                    // fetch('/annotate', {
+                //     method: 'POST',
+                //     headers: {
+                //         'Content-Type': 'application/x-www-form-urlencoded'
+                //     },
+                //     body: 'imageData=' + imageData + '&drawingMode=' + drawingMode + '&rectangle=' + rectangleStr + '&polylines[]=' + polylinesStr
+                // })
+                // .then(response => response.json())
+                // .then(data => {
+                //     var newImage = new Image();
+                //     newImage.onload = function() {
+                //         ctx.clearRect(0, 0, canvas.width, canvas.height);
+                //         ctx.drawImage(newImage, 0, 0);
+                //         image = newImage;
+                //     };
+                //     newImage.src = 'data:image/jpeg;base64,' + data.imageData;
+                // });
+            }
+
+            canvas.addEventListener("mousedown", function(event) {
+                if (event.button === 0)
+                    refreshCanvas()
+                    switch(drawingMode) {
+                        case "rectangle":
+                            rectangle[0] = event.offsetX,
+                            rectangle[1] = event.offsetY
+                            break
+                        case "polyline":
+                            ctx.beginPath()
+                            ctx.strokeStyle = 'red'
+                            ctx.lineWidth = 2
+                            ctx.moveTo(event.offsetX,event.offsetY)
+                            polyline.length=0
+                            polyline.push({x:event.offsetX,y:event.offsetY})
+                            rectangle[0]=event.offsetX
+                            rectangle[1]=event.offsetY
+                            rectangle[2]=event.offsetX
+                            rectangle[3]=event.offsetY
+                            break
+                    }
+            })
+            canvas.addEventListener("mousemove", function(event) {
+                if (event.buttons === 1) {
+                    if (drawingMode === "rectangle") {
+                        refreshCanvas()
+                        rectangle[2] = Math.min(Math.max(0,event.offsetX),canvas.width),
+                        rectangle[3] = Math.min(Math.max(0,event.offsetY),canvas.height)
+                        ctx.beginPath()
+                        ctx.strokeStyle = 'red'
+                        ctx.lineWidth = 2
+                        ctx.rect(rectangle[0],rectangle[1],rectangle[2]-rectangle[0],rectangle[3]-rectangle[1])
+                        ctx.stroke()
+                        ctx.closePath()
+                    }
+                    else if (drawingMode === "polyline") {
+                        if(event.offsetX<rectangle[0])
+                            rectangle[0]=Math.max(0,event.offsetX)
+                        else if(event.offsetX>rectangle[2])
+                            rectangle[2]=Math.min(canvas.width,event.offsetX)
+                        if(event.offsetY<rectangle[1])
+                            rectangle[1]=Math.max(0,event.offsetY)
+                        else if(event.offsetY>rectangle[3])
+                            rectangle[3]=Math.min(canvas.height,event.offsetY)
+                        ctx.lineTo(event.offsetX,event.offsetY)
+                        ctx.stroke()
+                        polyline.push({x:event.offsetX,y:event.offsetY})    
+                    }
+                }
+            })
+            canvas.addEventListener('mouseup',event => {
+                if(drawingMode==='polyline') {
+                    ctx.lineTo(...Object.values(polyline[0]))
+                    ctx.rect(rectangle[0],rectangle[1],rectangle[2]-rectangle[0],rectangle[3]-rectangle[1])
+                    ctx.stroke()
+                }
+                ctx.closePath()
+            })
+            document.getElementById("imageInput").addEventListener("change", loadImage);
+            document.getElementById("toggleModeBtn").addEventListener("click", toggleDrawingMode);
+            document.getElementById("clearBtn").addEventListener("click", clearAnnotations);
+            document.getElementById("saveBtn").addEventListener("click", saveAnnotations);
+        });
+    </script>
+</body>
+</html>
